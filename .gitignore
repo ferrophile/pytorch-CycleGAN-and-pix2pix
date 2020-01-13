@@ -41,3 +41,8 @@ test/.coverage
 test/data/legacy_serialized.pt
 *~
 .idea
+
+*.whl
+env/
+checkpoints/
+.venv/
