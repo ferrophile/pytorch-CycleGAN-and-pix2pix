@@ -25,7 +25,7 @@ class ADE20KDataset(BaseDataset):
         self.paths = sorted(make_dataset(self.dir, float("inf")))
 
         self.A_paths = [p for p in self.paths if p[-4:] == '.jpg']
-        self.B_paths = [p for p in self.paths if p[-4:] == '.jpg']
+        self.B_paths = [p for p in self.paths if p[-8:] == '_seg.png']
         
         assert len(self.A_paths) == len(self.B_paths)
         if opt.max_dataset_size != float("inf"):
