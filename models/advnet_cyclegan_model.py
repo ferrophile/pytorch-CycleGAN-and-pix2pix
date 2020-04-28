@@ -27,9 +27,11 @@ class AdvNetCycleGANModel(CycleGANModel):
             opt (Option class)-- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
         opt.input2_nc = opt.output_nc; # Background channels
+        opt.netG_A = 'alpha_resnet_9blocks'
+        opt.netG_B = 'resnet_9blocks'
         CycleGANModel.__init__(self, opt)
 
-        visual_names_A = ['real_A1', 'real_A2', 'fake_B', 'rec_A2']
+        visual_names_A = ['real_A1', 'real_A2', 'real_A3', 'fake_B', 'rec_A2']
         visual_names_B = ['real_B', 'fake_A2', 'rec_B']
         self.visual_names = visual_names_A + visual_names_B
         if self.isTrain and self.opt.lambda_identity > 0.0:  # if identity loss is used, we also visualize idt_B=G_A(B) ad idt_A=G_A(B)
@@ -46,7 +48,12 @@ class AdvNetCycleGANModel(CycleGANModel):
         """
         CycleGANModel.set_input(self, input)
         self.real_A1 = self.real_A[:, :3].to(self.device)
-        self.real_A2 = self.real_A[:, 3:].to(self.device)
+        self.real_A2 = self.real_A[:, 3:6].to(self.device)
+        self.real_A3 = self.real_A[:, 6:].to(self.device)
+        binary_mask, _ = torch.max(self.real_A1, 1, keepdim=True)
+        self.real_A3 = (binary_mask <= 0).float() * self.real_A2 + (binary_mask > 0).float() * self.real_A3
+
+        self.empty = -1 * torch.ones_like(self.real_A1)
 
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
@@ -54,7 +61,7 @@ class AdvNetCycleGANModel(CycleGANModel):
         self.rec_A2 = self.netG_B(self.fake_B)
 
         self.fake_A2 = self.netG_B(self.real_B)
-        self.fake_A = torch.cat((self.real_A1, self.fake_A2), 1)
+        self.fake_A = torch.cat((self.real_A1, self.fake_A2, self.real_A3), 1)
         self.rec_B = self.netG_A(self.fake_A)
 
     def backward_D_B(self):
@@ -70,7 +77,7 @@ class AdvNetCycleGANModel(CycleGANModel):
         # Identity loss
         if lambda_idt > 0:
             # G_A should be identity if real_B is fed: ||G_A(B) - B||
-            self.idt_A = self.netG_A(torch.cat((self.real_B, self.real_B), 1))
+            self.idt_A = self.netG_A(torch.cat((self.empty, self.real_B, self.real_B), 1))
             self.loss_idt_A = self.criterionIdt(self.idt_A, self.real_B) * lambda_B * lambda_idt
             # G_B should be identity if real_A is fed: ||G_B(A) - A||
             self.idt_B = self.netG_B(self.real_A2)

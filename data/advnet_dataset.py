@@ -28,6 +28,7 @@ class AdvNetDataset(BaseDataset):
             self.classes = {
                 'A1': 'mask',
                 'A2': 'scene',
+                'A3': 'object',
                 'B': 'image'
             }
         else:
@@ -62,7 +63,7 @@ class AdvNetDataset(BaseDataset):
             the modified parser.
         """
         # Settings for AdvNet
-        parser.set_defaults(input_nc=6)
+        parser.set_defaults(input_nc=9)
         return parser
 
     def __getitem__(self, index):
@@ -92,7 +93,7 @@ class AdvNetDataset(BaseDataset):
             imgs[c] = transform(imgs[c])
 
         return {
-            'A': torch.cat((imgs['A1'], imgs['A2']), 0),
+            'A': torch.cat((imgs['A1'], imgs['A2'], imgs['A3']), 0),
             'B': imgs['B'],
             'A_paths': self.paths['A1'][index], # probably not used
             'B_paths': self.paths['B'][index]
