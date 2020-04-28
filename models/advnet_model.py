@@ -18,7 +18,7 @@ class AdvNetModel(Pix2PixModel):
             the modified parser.
         """
         Pix2PixModel.modify_commandline_options(parser, is_train)
-        parser.set_defaults(netG='unet_128', dataset_mode='advnet', no_flip=True)
+        parser.set_defaults(netG='unet_128', netD='n_layers', dataset_mode='advnet', no_flip=True)
         return parser
 
     def __init__(self, opt):

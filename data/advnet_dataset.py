@@ -1,6 +1,6 @@
 import torch
 import os.path
-from data.base_dataset import BaseDataset, get_transform
+from data.base_dataset import BaseDataset, get_params, get_transform
 from data.image_folder import make_dataset
 from PIL import Image
 
@@ -13,8 +13,6 @@ class AdvNetDataset(BaseDataset):
     - object:       Object without background
     - scene:        Ground truth background only
     - structure:    Object mask with background
-
-    Hong Wing PANG, 10/1/2019
     """
 
     def __init__(self, opt):
@@ -25,11 +23,11 @@ class AdvNetDataset(BaseDataset):
         """
         BaseDataset.__init__(self, opt)
 
-        _obj = 'cola' # Placeholder
+        objects = ['cola', 'sprite', 'milk', 'tea']
         if self.opt.direction == 'AtoB':
             self.classes = {
-                'A1': 'scene',
-                'A2': 'structure',
+                'A1': 'mask',
+                'A2': 'scene',
                 'B': 'image'
             }
         else:
@@ -37,9 +35,13 @@ class AdvNetDataset(BaseDataset):
 
         self.paths = {}
         for c in self.classes:
-            class_path = '{}_{}_512'.format(_obj, self.classes[c])
-            dir = os.path.join(opt.dataroot, opt.phase, _obj, class_path)
-            self.paths[c] = sorted(make_dataset(dir, opt.max_dataset_size))
+            self.paths[c] = []
+            for obj in objects:
+                class_path = '{}_{}'.format(obj, self.classes[c])
+                dir = os.path.join(opt.dataroot, opt.phase, obj, class_path)
+
+                obj_limit = opt.max_dataset_size // len(objects)
+                self.paths[c] += sorted(make_dataset(dir))[:obj_limit]
 
         # validate dataset size
         self.size = len(self.paths['A1'])
@@ -60,7 +62,7 @@ class AdvNetDataset(BaseDataset):
             the modified parser.
         """
         # Settings for AdvNet
-        parser.set_defaults(netG='unet_128', input_nc=6)
+        parser.set_defaults(input_nc=6)
         return parser
 
     def __getitem__(self, index):
@@ -80,8 +82,14 @@ class AdvNetDataset(BaseDataset):
 
         for c in self.classes:
             path = self.paths[c][index]
-            img = Image.open(path).convert('RGB')
-            imgs[c] = self.transform(img)
+            imgs[c] = Image.open(path).convert('RGB')
+
+        transform_params = get_params(self.opt, imgs['B'].size)
+        transform = get_transform(self.opt, transform_params, grayscale=False)
+
+        # apply transformation
+        for c in self.classes:
+            imgs[c] = transform(imgs[c])
 
         return {
             'A': torch.cat((imgs['A1'], imgs['A2']), 0),
