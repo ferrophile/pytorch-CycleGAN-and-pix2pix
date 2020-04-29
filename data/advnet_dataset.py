@@ -26,7 +26,7 @@ class AdvNetDataset(BaseDataset):
         objects = ['cola', 'sprite', 'milk', 'tea']
         if self.opt.direction == 'AtoB':
             self.classes = {
-                'A1': 'mask',
+                'A1': 'object',
                 'A2': 'scene',
                 'B': 'image'
             }
