@@ -155,7 +155,7 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, in
     elif netG == 'unet_256':
         net = UnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     elif netG == 'alpha_resnet_9blocks':
-        net = DualResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=9)
+        net = FusedResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=9)
     else:
         raise NotImplementedError('Generator model name [%s] is not recognized' % netG)
     return init_net(net, init_type, init_gain, gpu_ids)
@@ -366,7 +366,7 @@ class ResnetGenerator(nn.Module):
                       nn.ReLU(True)]
         model += [nn.ReflectionPad2d(3)]
         model += [nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0)]
-        model += [nn.Tanh()]
+        #model += [nn.Tanh()]
 
         self.model = nn.Sequential(*model)
 
@@ -374,21 +374,21 @@ class ResnetGenerator(nn.Module):
         """Standard forward"""
         return self.model(input)
 
-class DualResnetGenerator(nn.Module):
+class FusedResnetGenerator(nn.Module):
     def __init__(self, input_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d, use_dropout=False, n_blocks=6, padding_type='reflect'):
-        super(DualResnetGenerator, self).__init__()
-        self.net1 = ResnetGenerator(3, 3, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=n_blocks)
-        self.net2 = ResnetGenerator(3, 1, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=n_blocks)
+        super(FusedResnetGenerator, self).__init__()
+        self.overlay = ResnetGenerator(3, 1, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=n_blocks)
+        fuse = [nn.Conv2d(4, 3, kernel_size=1, padding=0), nn.Tanh()]
+        self.fuse = nn.Sequential(*fuse)
 
     def forward(self, input):
-        net1_input = input[:, :3, :, :]
-        net2_input = input[:, 3:6, :, :]
+        mask_input = input[:, :3, :, :]
+        #scene_input = input[:, 3:6, :, :]
         back_input = input[:, 6:, :, :]
 
-        net1_output = self.net1.forward(net1_input)
-        net2_output = self.net2.forward(net2_input)
-
-        return back_input + (net1_output - back_input) * (net2_output + 1) / 2.0;
+        overlay_output = self.overlay.forward(mask_input)
+        fused_input = torch.cat((back_input, overlay_output), 1)
+        return self.fuse(fused_input)
 
 class ResnetBlock(nn.Module):
     """Define a Resnet block"""
